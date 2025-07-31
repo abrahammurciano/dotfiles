@@ -1,0 +1,195 @@
+#!/usr/bin/env bash
+
+# Default configuration
+SOURCE="${DOT_SOURCE:-$HOME/.dotfiles}"
+TARGET="${DOT_TARGET:-$HOME}"
+
+# Function to resolve target path
+# Args: file_path
+# Returns: absolute path in the target directory
+resolve_target_path() {
+    local file="$1"
+
+    # Handle absolute vs relative paths
+    if [[ "$file" = /* ]]; then
+        # Absolute path - check if it's within TARGET
+        if [[ "$file" != "$TARGET"* ]]; then
+            echo "Error: Path $file must be within $TARGET" >&2
+            return 1
+        fi
+        echo "$file"
+    else
+        # Relative path
+        echo "$TARGET/$file"
+    fi
+}
+
+# Function to get relative path from TARGET
+# Args: file_path
+# Returns: path relative to TARGET
+get_relative_path() {
+    local file="$1"
+
+    # Handle absolute vs relative paths
+    if [[ "$file" = /* ]]; then
+        # Absolute path - get relative path from TARGET
+        echo "${file#$TARGET/}"
+    else
+        # Already a relative path
+        echo "$file"
+    fi
+}
+
+# Function to resolve source path in dotfiles repo
+# Args: package relative_path
+# Returns: absolute path in the source package directory
+resolve_source_path() {
+    local package="$1"
+    local relative_path="$2"
+
+    echo "$SOURCE/$package/$relative_path"
+}
+
+# Function to ensure file and directories exist
+# Args: file_path
+ensure_file_exists() {
+    local file_path="$1"
+
+    if [[ ! -f "$file_path" ]]; then
+        mkdir -p "$(dirname "$file_path")"
+        touch "$file_path"
+    fi
+}
+
+# Function to show usage
+usage() {
+    echo "Usage: $0 <command> [args...]"
+    echo ""
+    echo "Commands:"
+    echo "  adopt PACKAGE FILE...   Adopt files into the dotfiles repository"
+    echo "  save [MESSAGE]          Save changes (git add, commit, push)"
+    echo ""
+    echo "Environment:"
+    echo "  DOT_SOURCE              Dotfiles source (default: ~/.dotfiles)"
+    echo "  DOT_TARGET              Target directory (default: ~)"
+}
+
+# Function to adopt files
+adopt() {
+    local package="$1"
+    shift  # Remove package from arguments
+
+    if [[ -z "$package" || $# -eq 0 ]]; then
+        echo "Error: PACKAGE and at least one FILE argument are required"
+        echo "Usage: $0 adopt PACKAGE FILE [FILE2 FILE3...]"
+        return 1
+    fi
+
+    local success_count=0
+    local total_files=$#
+
+    # Process each file individually
+    for file in "$@"; do
+        # Resolve paths
+        local target_file
+        if ! target_file=$(resolve_target_path "$file"); then
+            echo "Skipping $file: Not within target directory"
+            continue
+        fi
+
+        local relative_file=$(get_relative_path "$file")
+        local source_file=$(resolve_source_path "$package" "$relative_file")
+        local source_dir=$(dirname "$source_file")
+
+        # Create directories and ensure files exist
+        mkdir -p "$source_dir"
+        ensure_file_exists "$target_file"
+        ensure_file_exists "$source_file"
+
+        # Run stow for this file
+        echo "Adopting $relative_file into $package..."
+        if (cd "$SOURCE" && stow --adopt "$package"); then
+            echo "✓ Created symlink: $target_file -> $source_file"
+            ((success_count++))
+        else
+            echo "✗ Failed to adopt $relative_file"
+        fi
+    done
+
+    # Summary
+    if [[ $success_count -eq $total_files ]]; then
+        echo "All $total_files file(s) successfully adopted into $package"
+        return 0
+    elif [[ $success_count -eq 0 ]]; then
+        echo "Failed to adopt any files"
+        return 1
+    else
+        echo "Adopted $success_count of $total_files file(s)"
+        return 0
+    fi
+}
+
+# Function to save changes to the dotfiles repository
+save() {
+    local commit_msg="$1"
+
+    # Use default commit message if none provided
+    if [[ -z "$commit_msg" ]]; then
+        commit_msg="Update dotfiles $(date +%Y-%m-%d)"
+    fi
+
+    # Navigate to source directory
+    cd "$SOURCE" || {
+        echo "Error: Cannot change to dotfiles directory $SOURCE"
+        return 1
+    }
+
+    # Check for changes
+    if git status --porcelain | grep -q '^'; then
+        echo "Saving changes to dotfiles repository..."
+
+        # Add all changes
+        echo "Adding changes..."
+        git add .
+
+        # Commit changes
+        echo "Committing: $commit_msg"
+        git commit -m "$commit_msg"
+
+        # Push changes
+        echo "Pushing to remote..."
+        if git push; then
+            echo "✓ Successfully saved dotfiles"
+            return 0
+        else
+            echo "✗ Failed to push changes"
+            return 1
+        fi
+    else
+        echo "No changes to save"
+        return 0
+    fi
+}
+
+# Main command handling
+case "$1" in
+    adopt)
+        shift  # Remove 'adopt' from arguments
+        adopt "$@"  # Pass all remaining args to adopt function
+        ;;
+    save)
+        shift  # Remove 'save' from arguments
+        save "${1:-}"  # Pass optional commit message
+        ;;
+    -h|--help|help)
+        usage
+        ;;
+    "")
+        usage
+        ;;
+    *)
+        echo "Error: Unknown command '$1'"
+        usage
+        exit 1
+        ;;
+esac
