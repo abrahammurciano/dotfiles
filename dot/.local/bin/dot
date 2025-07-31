@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -euo pipefail
+
 # Default configuration
 SOURCE="${DOT_SOURCE:-$HOME/.dotfiles}"
 TARGET="${DOT_TARGET:-$HOME}"
@@ -108,9 +110,16 @@ adopt() {
 
         # Run stow for this file
         echo "Adopting $relative_file into $package..."
-        if (cd "$SOURCE" && stow --adopt "$package"); then
+
+        # Use set +e temporarily to prevent script from exiting if stow fails
+        set +e
+        (cd "$SOURCE" && stow --adopt "$package")
+        local stow_status=$?
+        set -e
+
+        if [[ $stow_status -eq 0 ]]; then
             echo "✓ Created symlink: $target_file -> $source_file"
-            ((success_count++))
+            success_count=$((success_count + 1))
         else
             echo "✗ Failed to adopt $relative_file"
         fi
@@ -119,13 +128,11 @@ adopt() {
     # Summary
     if [[ $success_count -eq $total_files ]]; then
         echo "All $total_files file(s) successfully adopted into $package"
-        return 0
-    elif [[ $success_count -eq 0 ]]; then
+    elif [[ $success_count -eq 0 && $total_files -gt 0 ]]; then
         echo "Failed to adopt any files"
         return 1
     else
         echo "Adopted $success_count of $total_files file(s)"
-        return 0
     fi
 }
 
@@ -139,10 +146,7 @@ save() {
     fi
 
     # Navigate to source directory
-    cd "$SOURCE" || {
-        echo "Error: Cannot change to dotfiles directory $SOURCE"
-        return 1
-    }
+    cd "$SOURCE"
 
     # Check for changes
     if git status --porcelain | grep -q '^'; then
@@ -158,16 +162,10 @@ save() {
 
         # Push changes
         echo "Pushing to remote..."
-        if git push; then
-            echo "✓ Successfully saved dotfiles"
-            return 0
-        else
-            echo "✗ Failed to push changes"
-            return 1
-        fi
+        git push
+        echo "✓ Successfully saved dotfiles"
     else
         echo "No changes to save"
-        return 0
     fi
 }
 
