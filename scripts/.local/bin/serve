@@ -1,0 +1,9 @@
+#/usr/bin/env bash
+
+folder=${1:-$(pwd)}
+ip_address=$(ip a | grep -E '[0-9]+: w[a-z0-9]+:' -A2 | grep 'inet ' | cut -d' ' -f6 | cut -d/ -f1)
+port=${2:-$(( 8001 + RANDOM % (9000 - 8001 + 1) ))}
+
+echo "Serving directory $folder on http://$ip_address:$port"
+cd $folder
+python -m http.server $port
