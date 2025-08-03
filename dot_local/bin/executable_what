@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+
+
+buffer-output() {
+	# Read from stdin into a buffer of size LINES. If the buffer is full, output it with the remaining stdin via less.
+	# If stdin is exhausted before the buffer is full, output the buffer directly.
+	# Options:
+	#   - LINES: The number of lines to buffer before outputting with less. Defaults to the terminal height.
+	#   - LESS_OPTS: Options to pass to less. Defaults to '-R'.
+
+    local buffer=()
+    local line_count=0
+	local LINES=${LINES:-$(tput lines)}
+	local LESS_OPTS=${LESS_OPTS:--R}
+
+    while IFS= read -r line; do
+        buffer+=("$line")
+        ((line_count++))
+
+        if ((line_count >= LINES)); then
+            ( printf '%s\n' "${buffer[@]}" ; cat ) | less $LESS_OPTS
+            return
+        fi
+    done
+
+	# The maximum line count was not exceeded, so print everything in the buffer
+	if test "${#buffer[@]}" -gt 0 ; then
+	    printf '%s\n' "${buffer[@]}"
+	fi
+
+	# If there was a final line without a trailing newline, print it
+	echo -n "$line"
+}
+
+# if many arguments, use ls
+if test "$#" -gt 1; then
+	ls -lhF --color=always --hyperlink=always "$@" | buffer-output
+	exit
+fi
+
+# if no arguments, or the argument is a directory, use ls
+if test -d "$1" || test -z "$1"; then
+    ls -lhF --color=always --hyperlink=always "${1:-$(pwd)}" | buffer-output
+	exit
+fi
+
+# if the argument does not exist, show an error
+if test ! -e "$1"; then
+	echo "what: $1: No such file or directory" >&2
+	exit 1
+fi
+
+# If the file is very small and exclusively text, show the file content
+if test "$(wc -c <"$1")" -lt 128 && LC_ALL=C grep -qv '[^[:print:][:space:]]' "$1"; then
+	cat "$1" | buffer-output
+	exit
+fi
+
+# if the argument is not a text file, show what it is with file
+if file --brief --mime "$1" | grep -q 'charset=binary'; then
+	file "$1" | buffer-output
+	exit
+fi
+
+# if the file is a JSON file, use jq
+if file --brief --mime "$1" | grep -q 'application/json'; then
+	jq -C . "$1" | buffer-output
+	exit
+fi
+
+# otherwise, show the file content
+cat "$1" | buffer-output
