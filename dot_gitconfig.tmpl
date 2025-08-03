@@ -2,7 +2,11 @@
 defaultBranch = main
 
 [user]
-email = {{ .email }}
+{{- if has "work" .groups }}
+email = abraham.murciano@mobileye.com
+{{- else }}
+email = abrahammurciano@gmail.com
+{{- end }}
 name = Abraham Murciano
 
 [credential]

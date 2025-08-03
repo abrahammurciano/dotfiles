@@ -10,8 +10,3 @@ autoPush = true
 
 [data]
 groups = {{- $groups | toToml -}}
-{{- if has "work" $groups }}
-email = "abraham.murciano@mobileye.com"
-{{- else }}
-email = "abrahammurciano@gmail.com"
-{{- end }}
