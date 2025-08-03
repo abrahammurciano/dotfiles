@@ -9,6 +9,7 @@ autoCommit = true
 autoPush = true
 
 [data]
+groups = {{- $groups | toToml -}}
 {{- if has "work" $groups }}
 email = "abraham.murciano@mobileye.com"
 {{- else }}
