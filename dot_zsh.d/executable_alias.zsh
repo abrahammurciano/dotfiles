@@ -1,0 +1,15 @@
+alias ls='ls -hF --color=auto'
+alias l='ls -lhF'
+alias mv='advmv -i'
+alias cp='advcp -gr'
+alias touch='f(){mkdir -p $(dirname "$@"); touch "$@"}; f'
+alias rmv='/homes/yossih/work/Scripts/rmv.sh'    # Stolen from chanamir
+alias ptpy='ptpython'
+alias gep='git add . && git commit --amend --no-edit && git psh --force-with-lease'
+alias gcp='f(){git add . && git cm "$*" && git psh};f'
+alias mkdir='mkdir -p'
+alias g=git
+alias nano='nano --nonewlines'
+alias activate='{test -d .venv && source .venv/bin/activate} || {test -d venv && source venv/bin/activate}'
+alias curl='curl --location'
+alias psql='docker run --rm -it --network host -v "$(pwd)":/workspace -w /workspace postgres psql'
