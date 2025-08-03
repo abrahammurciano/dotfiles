@@ -1,0 +1,1 @@
+alias psql='docker run --rm -it --network host -v "$(pwd)":/workspace -w /workspace postgres psql'

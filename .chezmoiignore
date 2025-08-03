@@ -1,4 +1,9 @@
 README.md
+
 {{- if ne .chezmoi.osRelease.id "arch" }}
 .config/paru/
+{{- end }}
+
+{{- if not (has "work" .groups) }}
+.zsh.d/alias.work.zsh
 {{- end }}
