@@ -119,7 +119,7 @@ source $ZSH/oh-my-zsh.sh
 
 # Source all files in ~/.zsh.d/
 if [[ -d ~/.zsh.d ]]; then
-    for file in ~/.zsh.d/*; do
+    for file in ~/.config/zsh/zsh.d/*; do
         [[ ! -f "$file" ]] || source "$file"
     done
 fi

@@ -1,2 +1,0 @@
-
-export UV_INIT_BUILD_BACKEND=uv_build
