@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+
+BROWSER="firefox"
+PROFILE="${1:-default}"
+URL="$(cloud-ssov2 console --profile "$PROFILE" | grep -oE 'https://\S+mobileye.com\S+session=\w+' | tail -n 1)"
+echo "$URL"
+URI_HANDLER="ext+container:name=aws-$PROFILE&url=$URL"
+"$BROWSER" "$URI_HANDLER"

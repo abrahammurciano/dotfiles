@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+
+VEHICLE="$1"
+ADDRESS=$(xprops vehicle "$VEHICLE" --xprops /mobileye/AVINFRA/xprep/xprops/ | jq .address -r)
+STDERR=$(ssh -o BatchMode=yes "$ADDRESS" true 2>&1 >/dev/null)
+
+echo "$STDERR" | grep "No route to host" && echo "$VEHICLE is not connected" && exit 1
+
+echo "$STDERR" | grep "Permission denied" && ( ssh-copy-id "$ADDRESS" || ( echo "Failed to copy key to $ADDRESS" && exit 2 ) )
+
+ssh "$ADDRESS"
