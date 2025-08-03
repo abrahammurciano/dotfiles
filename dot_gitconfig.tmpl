@@ -4,3 +4,27 @@ defaultBranch = main
 [user]
 email = {{ .email }}
 name = Abraham Murciano
+
+[credential]
+helper = cache --timeout=360000
+
+[branch]
+autosetuprebase = always
+autosetupmerge = true
+
+[push]
+default = current
+autoSetupRemote = true
+
+[alias]
+psh = push -u
+pll = pull --rebase
+co = checkout
+st = status
+br = branch
+last = show HEAD
+cm = commit -m
+del = branch -d
+pr = fetch --prune
+fpsh = push --force-with-lease -u
+cb = checkout -b
