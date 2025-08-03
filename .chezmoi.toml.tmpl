@@ -1,0 +1,16 @@
+{{- $groups := promptMultichoiceOnce
+    . "groups"
+    "What groups does this PC belong to?"
+    (list "personal" "work")
+-}}
+
+[git]
+autoCommit = true
+autoPush = true
+
+[data]
+{{- if has "work" $groups }}
+email = "abraham.murciano@mobileye.com"
+{{- else }}
+email = "abrahammurciano@gmail.com"
+{{- end }}
