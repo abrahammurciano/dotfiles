@@ -8,4 +8,5 @@ README.md
 .config/zsh/zshrc.d/*.work.zsh
 .local/bin/car
 .local/bin/aws-console
+.local/bin/fleet-db
 {{- end }}
