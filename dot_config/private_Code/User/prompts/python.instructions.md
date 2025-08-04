@@ -1,0 +1,25 @@
+---
+applyTo: '**/*.py'
+---
+# Python Instructions
+- PREFER tuples over lists where possible.
+- ALWAYS use the most modern Python features available.
+- ALWAYS use `f-strings` for string formatting.
+- PREFER returning a comprehension over creating a list and appending to it.
+- ALWAYS use `pathlib.Path` for file paths instead of strings and `os.path` functions.
+- After implementing a function, check if it's more than 3 to 4 statements long. If so, break it down into smaller functions.
+- TRY to use comprehensions instead of loops where possible.
+	- PREFER generator comprehensions like `(x for x in ...)` over a list comprehension like `[x for x in ...]`.
+	- PREFER comprehensions over `map` and `filter`.
+- PREFER raising exceptions over returning `None` to indicate failure.
+- ALWAYS try to implement functions as a single statement
+	- So try to start every function with `return`.
+- ALWAYS use strict type annotations.
+	- The code must pass `mypy`.
+	- ALWAYS use modern typing features like `Literal`, `TypedDict`, `Protocol`.
+	- ALWAYS use the `|` operator instead of `Union` and `Optional`.
+	- ALWAYS use the builtins `list`, `tuple`, `dict`, etc instead of `List`, `Tuple`, `Dict`, etc from the `typing` module.
+	- Type things with `Sequence`, `Mapping`, `Iterable`, etc instead of the concrete types `list`, `tuple`, `dict`, etc.
+	- ALWAYS use `typing.Self` for methods that return an instance of the same class.
+	- ALWAYS use `typing.overload` for functions that have multiple signatures.
+	- ALWAYS use `typing.override` for methods that override a method from a base class.
