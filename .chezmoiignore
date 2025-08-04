@@ -5,7 +5,7 @@ README.md
 {{- end }}
 
 {{- if not (has "work" .groups) }}
-.zsh.d/alias.work.zsh
+.config/zsh/zshrc.d/*.work.zsh
 .local/bin/car
 .local/bin/aws-console
 {{- end }}
