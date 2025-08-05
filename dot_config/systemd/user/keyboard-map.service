@@ -1,0 +1,12 @@
+[Unit]
+Description=Remap keyboard
+After=graphical-session.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/setxkbmap -option caps:ctrl_modifier
+ExecStop=/usr/bin/setxkbmap -option
+RemainAfterExit=yes
+
+[Install]
+WantedBy=default.target
