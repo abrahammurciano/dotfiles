@@ -50,6 +50,14 @@ parse_args() {
     done
 }
 
+aws_login() {
+	local profile_args="$1"
+	if aws sts get-caller-identity $profile_args &>/dev/null; then
+		return
+	fi
+	cloud-ssov2
+}
+
 output_key() {
     local env="$1"
     if [[ "$env" == "prod" ]]; then
@@ -81,6 +89,7 @@ connect_to_bastion() {
 
 main() {
     parse_args "$@"
+	aws_login "$(aws_profile_args "$ENV")"
     local instance_id=$(bastion_instance_id "$ENV")
 
     echo "Connecting to bastion instance $instance_id in $ENV environment..."
