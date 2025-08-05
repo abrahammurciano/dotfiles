@@ -8,5 +8,9 @@
 autoCommit = true
 autoPush = true
 
+[edit]
+command = "code"
+args = ["--wait", "--new-window"]
+
 [data]
 groups = {{- $groups | toToml -}}
