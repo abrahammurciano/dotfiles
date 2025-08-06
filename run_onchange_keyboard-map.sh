@@ -1,2 +1,2 @@
 #!/usr/bin/env bash
-systemctl --user enable --now keyboard-map.service
+[ -f ~/.config/systemd/user/keyboard-map.service ] && systemctl --user enable --now keyboard-map.service
