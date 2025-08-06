@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+
+detached=$(tmux list-sessions -f "#{?session_attached,0,1}" -F "#{session_name}" 2>/dev/null | head -1)
+[[ -n "$detached" ]] && exec tmux attach-session -t "$detached" || exec tmux new-session
