@@ -1,12 +1,24 @@
 #!/usr/bin/env bash
 
+function install-zsh-extension() {
+	local name="$1"
+	local url="$2"
+	local dir="$3"
+	local dest="${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/$dir/$name"
+	if [ ! -d "$dest" ]; then
+		echo "Installing $name..."
+		git clone "$url" "$dest"
+	fi
+}
+
 # Oh My Zsh
 [ -d "$HOME/.oh-my-zsh" ] || sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
 
 # Powerlevel10k
-P10K_DIR="${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/themes/powerlevel10k"
-[ -d "$P10K_DIR" ] || git clone --depth=1 https://github.com/romkatv/powerlevel10k.git "$P10K_DIR"
+install-zsh-extension "powerlevel10k" "https://github.com/romkatv/powerlevel10k.git" "themes"
 
 # Zsh Autosuggestions
-ZSH_AUTOSUGGESTIONS_DIR="${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/plugins/zsh-autosuggestions"
-[ -d "$ZSH_AUTOSUGGESTIONS_DIR" ] || git clone https://github.com/zsh-users/zsh-autosuggestions "$ZSH_AUTOSUGGESTIONS_DIR"
+install-zsh-extension "zsh-autosuggestions" "https://github.com/zsh-users/zsh-autosuggestions" "plugins"
+
+# Zsh Syntax Highlighting
+install-zsh-extension "zsh-syntax-highlighting" "https://github.com/zsh-users/zsh-syntax-highlighting.git" "plugins"
