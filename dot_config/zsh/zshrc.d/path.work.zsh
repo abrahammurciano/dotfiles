@@ -1,0 +1,1 @@
+export PATH="/mobileye/AVINFRA/bin:/mobileye/AVINFRA/internal/bin:$PATH"

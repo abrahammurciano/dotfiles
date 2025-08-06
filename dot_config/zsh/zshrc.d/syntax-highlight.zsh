@@ -1,0 +1,2 @@
+ZSH_HIGHLIGHT_HIGHLIGHTERS+=(brackets line)
+ZSH_HIGHLIGHT_STYLES[line]='bold'
