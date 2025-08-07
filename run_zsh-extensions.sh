@@ -8,6 +8,12 @@ function install-zsh-extension() {
 	if [ ! -d "$dest" ]; then
 		echo "Installing $name..."
 		git clone "$url" "$dest"
+	else
+		if ! find "$dest/.updated" -maxdepth 0 -mtime -7 2>/dev/null | grep -q .; then
+			echo "Updating $name..."
+			git -C "$dest" pull
+			touch "$dest/.updated"
+		fi
 	fi
 }
 

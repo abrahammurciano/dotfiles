@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+function clipboard-arg() {
+	clipboard="${1:-clipboard}"
+	if test "$clipboard" != "primary" && test "$clipboard" != "clipboard"; then
+		echo "Invalid clipboard type: $clipboard" >&2
+		return 1
+	fi
+	echo "$clipboard"
+}
+
+if command -v xsel >/dev/null 2>&1; then
+	function copy() {
+		local clipboard="$1"
+		xsel --input --"$clipboard"
+	}
+
+	function paste() {
+		local clipboard="$1"
+		xsel --output --"$clipboard"
+	}
+elif command -v wl-copy >/dev/null 2>&1; then
+	function copy() {
+		local clipboard="$1"
+		local clipboard_flags="$(test "$clipboard" = "primary" && echo "--primary" || echo "")"
+		wl-copy $clipboard_flags
+	}
+
+	function paste() {
+		local clipboard="$1"
+		local clipboard_flags="$(test "$clipboard" = "primary" && echo "--primary" || echo "")"
+		wl-paste $clipboard_flags
+	}
+fi
+
+
+command="$1"
+shift
+if [ "$command" = "copy" ]; then
+	clipboard=$(clipboard-arg "$1")
+	copy "$clipboard"
+elif [ "$command" = "paste" ]; then
+	clipboard=$(clipboard-arg "$1")
+	paste "$clipboard" | tmux load-buffer - && tmux paste-buffer
+else
+	echo "Unknown command: $command" >&2
+	exit 1
+fi
