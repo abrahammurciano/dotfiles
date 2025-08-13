@@ -31,7 +31,7 @@ elif command -v wl-copy >/dev/null 2>&1; then
 	function paste_to_stdout() {
 		local clipboard="$1"
 		local clipboard_flags="$(test "$clipboard" = "primary" && echo "--primary" || echo "")"
-		wl-paste $clipboard_flags
+		wl-paste --no-newline $clipboard_flags
 	}
 fi
 
