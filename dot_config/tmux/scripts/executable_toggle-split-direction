@@ -1,0 +1,318 @@
+#!/usr/bin/env python3
+
+import argparse
+import subprocess
+import sys
+from abc import ABC, abstractmethod
+from contextlib import contextmanager
+from dataclasses import dataclass
+from enum import Enum
+from typing import Iterable, Iterator, List, Optional, Sequence, Tuple, Union
+
+
+def tmux_var(variable: str) -> str:
+    return subprocess.check_output(
+        ["tmux", "display", "-p", f"#{{{variable}}}"], text=True
+    ).strip()
+
+
+class Ratios:
+    def __init__(self, ratios: Iterable[float]) -> None:
+        ratios = tuple(ratios)
+        total = sum(ratios)
+        self._ratios = tuple(r / total for r in ratios)
+
+    def distribute(self, total: int) -> Sequence[int]:
+        result = [round(ratio * total) for ratio in self._ratios]
+        result[-1] += total - sum(result)
+        return result
+
+
+@dataclass
+class Placement:
+    width: int
+    height: int
+    x: int
+    y: int
+
+    @classmethod
+    def parse(cls, layout: str) -> "Placement":
+        dimensions, x, y = layout.split(",")
+        width, height = dimensions.split("x")
+        return cls(width=int(width), height=int(height), x=int(x), y=int(y))
+
+    def __str__(self) -> str:
+        return f"{self.width}x{self.height},{self.x},{self.y}"
+
+
+@dataclass
+class Pane:
+    pane_id: int
+    placement: Placement
+    parent: Optional["Container"]
+
+    @classmethod
+    def parse(cls, layout: str, parent: Optional["Container"] = None) -> "Pane":
+        placement, pane_id = layout.rsplit(",", 1)
+        return cls(
+            pane_id=int(pane_id),
+            placement=Placement.parse(placement),
+            parent=parent,
+        )
+
+    def move(self, placement: Placement) -> None:
+        self.placement = placement
+
+    def __str__(self) -> str:
+        return f"{self.placement},{self.pane_id}"
+
+
+class Direction(ABC):
+    @classmethod
+    def parse(cls, layout: str) -> Tuple[str, "Direction", str]:
+        index = min((i for i in (layout.find(c) for c in "[{") if i >= 0))
+        direction = Row() if layout[index] == "{" else Column()
+        return layout[:index], direction, layout[index + 1 : -1]
+
+    def surround(self, children: Iterable[object]) -> str:
+        start, end = self.delimiters()
+        return f"{start}{','.join(str(child) for child in children)}{end}"
+
+    @abstractmethod
+    def toggle(self) -> "Direction": ...
+
+    @abstractmethod
+    def delimiters(self) -> Tuple[str, str]: ...
+
+    @abstractmethod
+    def length(self, placement: Placement) -> int: ...
+
+    @abstractmethod
+    def breadth(self, placement: Placement) -> int: ...
+
+    @abstractmethod
+    def position(self, placement: Placement) -> int: ...
+
+    @abstractmethod
+    def align(self, placement: Placement) -> int: ...
+
+    @abstractmethod
+    def placement(
+        self, position: int, align: int, length: int, breadth: int
+    ) -> Placement: ...
+
+
+class Row(Direction):
+    def toggle(self) -> "Column":
+        return Column()
+
+    def delimiters(self) -> Tuple[str, str]:
+        return ("{", "}")
+
+    def length(self, placement: Placement) -> int:
+        return placement.width
+
+    def breadth(self, placement: Placement) -> int:
+        return placement.height
+
+    def position(self, placement: Placement) -> int:
+        return placement.x
+
+    def align(self, placement: Placement) -> int:
+        return placement.y
+
+    def placement(
+        self, position: int, align: int, length: int, breadth: int
+    ) -> Placement:
+        return Placement(width=length, height=breadth, x=position, y=align)
+
+
+class Column(Direction):
+    def toggle(self) -> Row:
+        return Row()
+
+    def delimiters(self) -> Tuple[str, str]:
+        return ("[", "]")
+
+    def length(self, placement: Placement) -> int:
+        return placement.height
+
+    def breadth(self, placement: Placement) -> int:
+        return placement.width
+
+    def position(self, placement: Placement) -> int:
+        return placement.y
+
+    def align(self, placement: Placement) -> int:
+        return placement.x
+
+    def placement(
+        self, position: int, align: int, length: int, breadth: int
+    ) -> Placement:
+        return Placement(width=breadth, height=length, x=align, y=position)
+
+
+@dataclass
+class Container:
+    direction: Direction
+    children: List[Union["Container", Pane]]
+    placement: Placement
+    parent: Optional["Container"]
+
+    @classmethod
+    def parse(cls, layout: str, parent: Optional["Container"] = None) -> "Container":
+        placement, direction, children_layout = Direction.parse(layout)
+        children = []
+        container = cls(
+            direction=direction,
+            children=children,
+            placement=Placement.parse(placement),
+            parent=parent,
+        )
+        container._parse_children(children_layout)
+        return container
+
+    def find(self, pane: int) -> Pane | None:
+        for child in self.children:
+            if isinstance(child, Pane) and child.pane_id == pane:
+                return child
+            elif isinstance(child, Container):
+                found = child.find(pane)
+                if found:
+                    return found
+        return None
+
+    def move(self, placement: Placement) -> None:
+        with self.adjust():
+            self.placement = placement
+
+    @contextmanager
+    def adjust(self) -> Iterator[None]:
+        ratios = Ratios(
+            self.direction.length(child.placement) for child in self.children
+        )
+        yield
+        available = self.direction.length(self.placement) - len(self.children) + 1
+        start = self.direction.position(self.placement)
+        for child, ratio in zip(self.children, ratios.distribute(available)):
+            start = self._resize_child(child, ratio, start) + 1
+
+    def _resize_child(
+        self, child: Union["Container", Pane], length: int, start: int
+    ) -> int:
+        child.move(
+            self.direction.placement(
+                position=start,
+                align=self.direction.align(self.placement),
+                length=length,
+                breadth=self.direction.breadth(self.placement),
+            )
+        )
+        return start + length
+
+    def _parse_children(self, layout: str) -> None:
+        depth = 0
+        properties = 0
+        current = ""
+
+        for char in layout:
+            if char in "{[":
+                depth += 1
+                current += char
+            elif char in "}]":
+                depth -= 1
+                current += char
+                if depth == 0:
+                    properties += 1
+            elif char == "," and depth == 0 and properties < 3:
+                current += char
+                properties += 1
+            elif char == "," and depth == 0:
+                self.children.append(Layout.parse_child(current, parent=self))
+                current = ""
+                properties = 0
+            else:
+                current += char
+
+        if current:
+            self.children.append(Layout.parse_child(current, parent=self))
+
+    def __str__(self) -> str:
+        return f"{self.placement}{self.direction.surround(self.children)}"
+
+
+@dataclass
+class Layout:
+    root: Union[Container, Pane]
+
+    @classmethod
+    def parse(cls, layout: str) -> "Layout":
+        _, layout = layout.split(",", 1)
+        return cls(cls.parse_child(layout))
+
+    def save(self) -> None:
+        subprocess.run(["tmux", "select-layout", str(self)], check=True)
+
+    @classmethod
+    def parse_child(
+        cls, layout: str, parent: Optional["Container"] = None
+    ) -> Union["Container", "Pane"]:
+        return (
+            Container.parse(layout, parent=parent)
+            if "[" in layout or "{" in layout
+            else Pane.parse(layout, parent=parent)
+        )
+
+    def find(self, pane: int) -> Pane:
+        if isinstance(self.root, Pane):
+            if self.root.pane_id == pane:
+                return self.root
+            raise ValueError(f"Pane {pane} not found")
+        found = self.root.find(pane)
+        if not found:
+            raise ValueError(f"Pane {pane} not found")
+        return found
+
+    @property
+    def checksum(self) -> str:
+        checksum = 0
+        for char in str(self.root):
+            checksum = (checksum >> 1) + ((checksum & 1) << 15) % 65536
+            checksum += ord(char)
+            checksum %= 65536
+        return f"{checksum:04x}"
+
+    def __str__(self) -> str:
+        return f"{self.checksum},{self.root}"
+
+
+def parse_args() -> Tuple[Layout, int, bool]:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("layout", nargs="?")
+    parser.add_argument("pane_id", nargs="?")
+    parser.add_argument("--apply", action="store_true")
+    args = parser.parse_args()
+    return (
+        Layout.parse(args.layout or tmux_var("window_layout")),
+        int((args.pane_id or tmux_var("pane_id")).lstrip("%")),
+        args.apply,
+    )
+
+
+def main():
+    layout, pane_id, apply = parse_args()
+    pane = layout.find(pane_id)
+    if pane.parent:
+        with pane.parent.adjust():
+            pane.parent.direction = pane.parent.direction.toggle()
+    if apply:
+        try:
+            layout.save()
+        except subprocess.CalledProcessError:
+            raise SystemExit(1)
+    else:
+        print(layout)
+
+
+if __name__ == "__main__":
+    main()
