@@ -172,7 +172,7 @@ class Container:
         container._parse_children(children_layout)
         return container
 
-    def find(self, pane: int) -> Pane | None:
+    def find(self, pane: int) -> Optional[Pane]:
         for child in self.children:
             if isinstance(child, Pane) and child.pane_id == pane:
                 return child
