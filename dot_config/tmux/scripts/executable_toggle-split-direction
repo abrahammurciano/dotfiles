@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
+from __future__ import annotations
 
 import argparse
 import subprocess
-import sys
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from dataclasses import dataclass
-from enum import Enum
 from typing import Iterable, Iterator, List, Optional, Sequence, Tuple, Union
+
+Node = Union["Container", "Pane"]
 
 
 def tmux_var(variable: str) -> str:
@@ -36,7 +37,7 @@ class Placement:
     y: int
 
     @classmethod
-    def parse(cls, layout: str) -> "Placement":
+    def parse(cls, layout: str) -> Placement:
         dimensions, x, y = layout.split(",")
         width, height = dimensions.split("x")
         return cls(width=int(width), height=int(height), x=int(x), y=int(y))
@@ -49,10 +50,10 @@ class Placement:
 class Pane:
     pane_id: int
     placement: Placement
-    parent: Optional["Container"]
+    parent: Optional[Container]
 
     @classmethod
-    def parse(cls, layout: str, parent: Optional["Container"] = None) -> "Pane":
+    def parse(cls, layout: str, parent: Optional[Container] = None) -> Pane:
         placement, pane_id = layout.rsplit(",", 1)
         return cls(
             pane_id=int(pane_id),
@@ -69,7 +70,7 @@ class Pane:
 
 class Direction(ABC):
     @classmethod
-    def parse(cls, layout: str) -> Tuple[str, "Direction", str]:
+    def parse(cls, layout: str) -> Tuple[str, Direction, str]:
         index = min((i for i in (layout.find(c) for c in "[{") if i >= 0))
         direction = Row() if layout[index] == "{" else Column()
         return layout[:index], direction, layout[index + 1 : -1]
@@ -79,7 +80,7 @@ class Direction(ABC):
         return f"{start}{','.join(str(child) for child in children)}{end}"
 
     @abstractmethod
-    def toggle(self) -> "Direction": ...
+    def toggle(self) -> Direction: ...
 
     @abstractmethod
     def delimiters(self) -> Tuple[str, str]: ...
@@ -103,7 +104,7 @@ class Direction(ABC):
 
 
 class Row(Direction):
-    def toggle(self) -> "Column":
+    def toggle(self) -> Column:
         return Column()
 
     def delimiters(self) -> Tuple[str, str]:
@@ -155,12 +156,12 @@ class Column(Direction):
 @dataclass
 class Container:
     direction: Direction
-    children: List[Union["Container", Pane]]
+    children: List[Node]
     placement: Placement
-    parent: Optional["Container"]
+    parent: Optional[Container]
 
     @classmethod
-    def parse(cls, layout: str, parent: Optional["Container"] = None) -> "Container":
+    def parse(cls, layout: str, parent: Optional[Container] = None) -> Container:
         placement, direction, children_layout = Direction.parse(layout)
         children = []
         container = cls(
@@ -197,9 +198,7 @@ class Container:
         for child, ratio in zip(self.children, ratios.distribute(available)):
             start = self._resize_child(child, ratio, start) + 1
 
-    def _resize_child(
-        self, child: Union["Container", Pane], length: int, start: int
-    ) -> int:
+    def _resize_child(self, child: Node, length: int, start: int) -> int:
         child.move(
             self.direction.placement(
                 position=start,
@@ -243,10 +242,10 @@ class Container:
 
 @dataclass
 class Layout:
-    root: Union[Container, Pane]
+    root: Node
 
     @classmethod
-    def parse(cls, layout: str) -> "Layout":
+    def parse(cls, layout: str) -> Layout:
         _, layout = layout.split(",", 1)
         return cls(cls.parse_child(layout))
 
@@ -254,9 +253,7 @@ class Layout:
         subprocess.run(["tmux", "select-layout", str(self)], check=True)
 
     @classmethod
-    def parse_child(
-        cls, layout: str, parent: Optional["Container"] = None
-    ) -> Union["Container", "Pane"]:
+    def parse_child(cls, layout: str, parent: Optional[Container] = None) -> Node:
         return (
             Container.parse(layout, parent=parent)
             if "[" in layout or "{" in layout
