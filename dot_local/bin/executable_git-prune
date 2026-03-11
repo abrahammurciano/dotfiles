@@ -1,0 +1,126 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+REMOTE="${REMOTE:-origin}"
+MAIN_BRANCH="${MAIN_BRANCH:-$(git symbolic-ref "refs/remotes/$REMOTE/HEAD" 2>/dev/null | sed "s|refs/remotes/$REMOTE/||" || echo "main")}"
+REMOTE_MAIN="$REMOTE/$MAIN_BRANCH"
+
+TO_DELETE=()
+TO_KEEP=()
+TO_PROMPT=()
+
+perform_rebase() {
+    local dir="$1"
+    (cd "$dir" && git rebase "$REMOTE_MAIN" --quiet >/dev/null 2>&1) || {
+        (cd "$dir" && git rebase --abort >/dev/null 2>&1) || true
+        echo "uncertain"
+        return
+    }
+    local remaining
+    remaining=$(cd "$dir" && git log --oneline "$REMOTE_MAIN"..HEAD | wc -l | tr -d ' ')
+    [ "$remaining" -eq 0 ] && echo "merged" || echo "unmerged"
+}
+
+run_rebase_check() {
+    local branch="$1"
+    local worktree_dir="/tmp/git-clean-$$-$RANDOM"
+    local temp_branch="tmp/clean-$$"
+    git worktree add -b "$temp_branch" "$worktree_dir" "$branch" --no-track >/dev/null 2>&1 || { echo "uncertain"; return; }
+    local result
+    result=$(perform_rebase "$worktree_dir")
+    git worktree remove --force "$worktree_dir" >/dev/null 2>&1 || true
+    git branch -D "$temp_branch" >/dev/null 2>&1 || true
+    echo "$result"
+}
+
+check_merged_status() {
+    local branch="$1"
+    local cherry_output
+    cherry_output=$(git cherry "$REMOTE_MAIN" "$branch" 2>/dev/null) || { echo "uncertain"; return; }
+    echo "$cherry_output" | grep -q '^+' || { echo "merged"; return; }
+    run_rebase_check "$branch"
+}
+
+classify_branch() {
+    local branch="$1"
+    printf "  %-50s" "$branch ..."
+    local status
+    status=$(check_merged_status "$branch")
+    echo " $status"
+    case "$status" in
+        merged)   TO_DELETE+=("$branch") ;;
+        unmerged) TO_KEEP+=("$branch") ;;
+        *)        TO_PROMPT+=("$branch") ;;
+    esac
+}
+
+handle_prompts() {
+    local branch answer
+    for branch in "${TO_PROMPT[@]+"${TO_PROMPT[@]}"}"; do
+        read -rp "  '$branch': could not confirm merged (rebase conflicts). Delete? [y/N] " answer
+        case "$answer" in
+            [yY]|[yY][eE][sS]) TO_DELETE+=("$branch") ;;
+            *) TO_KEEP+=("$branch") ;;
+        esac
+    done
+}
+
+ensure_on_main_if_deleting_current() {
+    local current_branch="$1" branch
+    for branch in "${TO_DELETE[@]+"${TO_DELETE[@]}"}"; do
+        [ "$branch" = "$current_branch" ] || continue
+        echo "Current branch '$current_branch' will be deleted — switching to '$MAIN_BRANCH'..."
+        git checkout "$MAIN_BRANCH"
+        git pull "$REMOTE" "$MAIN_BRANCH"
+        return
+    done
+}
+
+delete_branches() {
+    local branch
+    for branch in "${TO_DELETE[@]}"; do
+        git branch -D "$branch"
+        echo "  Deleted: $branch"
+    done
+}
+
+gone_branches() {
+    git branch -vv | grep ': gone]' | awk '{print ($1 == "*") ? $2 : $1}' | grep -v "^${MAIN_BRANCH}$" || true
+}
+
+main() {
+    local current_branch
+    current_branch=$(git rev-parse --abbrev-ref HEAD)
+
+    echo "Fetching remote state..."
+    git fetch --prune "$REMOTE"
+
+    local branches
+    branches=$(gone_branches)
+
+    if [ -z "$branches" ]; then
+        echo "No stale branches found."
+        return
+    fi
+
+    echo "Checking branches..."
+    for branch in $branches; do
+        classify_branch "$branch"
+    done
+
+    handle_prompts
+
+    if [ ${#TO_DELETE[@]} -eq 0 ]; then
+        echo "Nothing to delete."
+        return
+    fi
+
+    ensure_on_main_if_deleting_current "$current_branch"
+
+    echo "Deleting branches..."
+    delete_branches
+
+    [ ${#TO_KEEP[@]} -gt 0 ] && echo "Kept (unmerged changes): ${TO_KEEP[*]}"
+}
+
+main "$@"
