@@ -14,7 +14,7 @@ DESCRIPTION:
     Connects to the Fleet database for the specified environment.
 
 ARGUMENTS:
-    ENVIRONMENT    The environment to connect to: 'dev' or 'prod' (default: dev)
+    ENVIRONMENT    The environment to connect to: 'dev', 'prod', or 'pentest' (default: dev)
 
 OPTIONS:
     -h, --help     Show this help message and exit
@@ -62,15 +62,19 @@ output_key() {
     local env="$1"
     if [[ "$env" == "prod" ]]; then
         echo "ProdBastionInstanceId"
+	elif [[ "$env" == "pentest" ]]; then
+        echo "PentestBastionInstanceId"
     else
         echo "DevBastionInstanceId"
     fi
 }
 
-aws_profile_args() {
+aws_cli_args() {
     local env="$1"
     if [[ "$env" == "prod" ]]; then
         echo "--profile fleet"
+	elif [[ "$env" == "pentest" ]]; then
+		echo "--region us-east-2"
     else
         echo ""
     fi
@@ -78,18 +82,18 @@ aws_profile_args() {
 
 bastion_instance_id() {
     local env="$1"
-    aws cloudformation describe-stacks --stack-name "fleet-api-stack-$env" $(aws_profile_args "$env") --query "Stacks[0].Outputs[?OutputKey=='$(output_key "$env")'].OutputValue" --output text
+    aws cloudformation describe-stacks --stack-name "fleet-api-stack-$env" $(aws_cli_args "$env") --query "Stacks[0].Outputs[?OutputKey=='$(output_key "$env")'].OutputValue" --output text
 }
 
 connect_to_bastion() {
     local env="$1"
     local instance_id="$2"
-    aws ssm start-session --target "$instance_id" --document-name "AWS-StartInteractiveCommand" --parameters "command=db" $(aws_profile_args "$env")
+    aws ssm start-session --target "$instance_id" --document-name "AWS-StartInteractiveCommand" --parameters "command=db" $(aws_cli_args "$env")
 }
 
 main() {
     parse_args "$@"
-	aws_login "$(aws_profile_args "$ENV")"
+	aws_login "$(aws_cli_args "$ENV")"
     local instance_id=$(bastion_instance_id "$ENV")
 
     echo "Connecting to bastion instance $instance_id in $ENV environment..."
