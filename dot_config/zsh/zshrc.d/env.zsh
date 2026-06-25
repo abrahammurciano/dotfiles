@@ -5,3 +5,5 @@ export LESS='--mouse --wheel-lines=15 --search-skip-screen --ignore-case --RAW-C
 
 export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$HOME/.local/lib"
 export JSII_SILENCE_WARNING_UNTESTED_NODE_VERSION=1
+
+export AWS_PAGER=''
