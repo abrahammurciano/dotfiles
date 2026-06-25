@@ -23,3 +23,9 @@ applyTo: '**/*.py'
 	- ALWAYS use `typing.Self` for methods that return an instance of the same class.
 	- ALWAYS use `typing.overload` for functions that have multiple signatures.
 	- ALWAYS use `typing.override` for methods that override a method from a base class.
+
+## PyTest Instructions
+- ALWAYS use `pytest` fixtures for setting up and tearing down test dependencies.
+- PREFER `pytest` parameterized tests or parametrized fixtures over loops in tests.
+- ALWAYS put fixtures in the same test file if they are only needed in that file.
+- Put ONLY commonly used fixtures in `conftest.py` files.
