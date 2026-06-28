@@ -1,0 +1,9 @@
+{
+	"frame": false,
+	"screenSharing": {
+		"thumbnail": {
+			"enabled": false
+		}
+	},
+	"disableNotificationWindowFlash": true
+}
